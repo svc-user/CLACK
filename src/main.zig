@@ -3,9 +3,9 @@ const windows = std.os.windows;
 const user32 = @import("user32ext.zig");
 const winmm = @import("winmm.zig");
 
-const soundio = @cImport({
-    @cInclude("vendor/libsoundio-1.1.0/soundio/soundio.h");
-});
+// const soundio = @cImport({
+//     @cInclude("C:/Users/nsc/code/CLACK/src/vendor/libsoundio-1.1.0/soundio/soundio.h");
+// });
 
 const State = struct {
     wavHandl: winmm.HWAVEOUT = undefined,
@@ -19,8 +19,8 @@ var keyMap = std.AutoHashMap(Keys, []const u8).init(allocator);
 var keyMapShift = std.AutoHashMap(Keys, []const u8).init(allocator);
 
 pub fn main() !void {
-    const sio = soundio.soundio_create();
-    _ = sio;
+    //const sio = soundio.soundio_create();
+    //_ = sio;
     try addKeyMap();
     try addKeyMapShift();
     defer keyMap.deinit();

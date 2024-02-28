@@ -15,13 +15,6 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    // const libsoundio = b.addSharedLibrary(.{
-    //     .target = target,
-    //     .optimize = optimize,
-    //     .name = "libsoundio",
-    //     .root_source_file = .{ .cwd_relative = "vendor/libsoundio-1.1.0/soundio/soundio.h" },
-    // });
-
     const exe = b.addExecutable(.{
         .name = "CLACK",
         // In this case the main source file is merely a path, however, in more
@@ -30,12 +23,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    // exe.linkLibrary(libsoundio);
     exe.addLibraryPath(.{ .path = "C:/Windows/System32" });
-    exe.addLibraryPath(.{ .cwd_relative = "vendor/libsoundio-1.1.0/x86_64" });
-
-    // exe.linkSystemLibrary2("User32", .{ .needed = true, .preferred_link_mode = .Dynamic });
-    // exe.linkSystemLibrary("User32");
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
