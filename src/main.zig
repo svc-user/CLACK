@@ -25,7 +25,6 @@ pub fn main() !void {
         .sample_rate = 22050,
         .write_callback = sndio_callback,
     });
-    defer outstream.deinit();
 
     try outstream.start();
 
@@ -34,26 +33,6 @@ pub fn main() !void {
     defer keyMap.deinit();
     defer keyMapShift.deinit();
 
-    // var hndl: windows.LONG_PTR = @as(windows.LONG_PTR, 0);
-    // var pwfx: winmm.WAVEFORMATEX = .{
-    //     .wFormatTag = winmm.WAVE_FORMAT_PCM,
-    //     .nChannels = 1,
-    //     .nSamplesPerSec = 22050,
-    //     .nAvgBytesPerSec = 176000,
-    //     .nBlockAlign = (1 * 8) / 8,
-    //     .wBitsPerSample = 8,
-    //     .cbSize = 0,
-    // };
-    // var lppwfx: winmm.LPCWAVEFORMATEX = &pwfx;
-
-    // var mmr = winmm.waveOutOpen(&hndl, winmm.MM_WAVE_MAPPER, lppwfx, &waveCallback, 0, winmm.CALLBACK_FUNCTION | winmm.WAVE_FORMAT_DIRECT);
-    // if (mmr != winmm.MMSYSERR_NOERROR) {
-    //     std.debug.print("Unable to open audio device. err: {d}\n", .{mmr});
-    //     return;
-    // }
-
-    // const uhndl: usize = @intCast(hndl);
-    // state.wavHandl = @ptrFromInt(uhndl);
     defer {
         std.debug.print("Unhooking.\n", .{});
         var uhr: u8 = 0;
@@ -63,13 +42,9 @@ pub fn main() !void {
             std.time.sleep(0.5 * 1000 * 1000 * 1000);
         }
 
-        // std.debug.print("Stopping audio output.\n", .{});
-        // mmr = 1;
-        // while (mmr != 0) {
-        //     mmr = winmm.waveOutClose(state.wavHandl);
-        //     std.debug.print("waveOutClose returned {any}.\n", .{mmr});
-        //     std.time.sleep(0.5 * 1000 * 1000 * 1000);
-        // }
+        std.debug.print("Closing output stream.\n", .{});
+        outstream.deinit();
+        std.debug.print("Output stream closed.\n", .{});
     }
 
     const nto = windows.kernel32.CreateThread(null, 0, &messageListener, null, 0, null);
