@@ -1,3 +1,0 @@
-[submodule "src/zig-soundio"]
-	path = src/zig-soundio
-	url = https://github.com/veloscillator/zig-soundio.git

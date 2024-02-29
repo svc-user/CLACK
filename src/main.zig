@@ -12,6 +12,24 @@ const State = struct {
 };
 var state: State = .{};
 
+const Soundfiles: [std.meta.tags(Sound).len][]f32 = {
+    var i: usize = 0;
+    inline for (std.meta.tags(Sound)) |sType| {
+        Soundfiles[i] = switch (sType) {
+            //.Backspace => @embedFile("sounds/Dell_allSpeakers_mono.wav"),
+            .Backspace => @embedFile("sounds/backspace.wav"),
+            .Enter => @embedFile("sounds/enter.wav"),
+            .Space => @embedFile("sounds/space.wav"),
+            .Generic0 => @embedFile("sounds/generic0.wav"),
+            .Generic1 => @embedFile("sounds/generic1.wav"),
+            .Generic2 => @embedFile("sounds/generic2.wav"),
+            .Generic3 => @embedFile("sounds/generic3.wav"),
+            .Generic4 => @embedFile("sounds/generic4.wav"),
+        };
+        i += 1;
+    }
+};
+
 const allocator = std.heap.page_allocator;
 var keyMap = std.AutoHashMap(Keys, []const u8).init(allocator);
 var keyMapShift = std.AutoHashMap(Keys, []const u8).init(allocator);
