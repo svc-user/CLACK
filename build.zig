@@ -5,6 +5,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const wav_mod = b.dependency("wav", .{ .target = target, .optimize = optimize }).module("wav");
     const exe = b.addExecutable(.{
         .name = "CLACK",
         .root_source_file = .{ .path = "src/main.zig" },
@@ -12,6 +13,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe.addModule("wav", wav_mod);
     exe.addModule("soundio", soundio.module(b));
     soundio.link(b, exe);
 

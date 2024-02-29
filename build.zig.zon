@@ -1,0 +1,8 @@
+.{
+    .name = "CLACK",
+    .version = "0.0.1",
+    .dependencies = .{ .wav = .{
+        .url = "https://github.com/svc-user/zig-wav/archive/3d17eaf74a67e7c100fc30d3155026d59ab62a86.tar.gz",
+        .hash = "12206d6d2c9c1093bbf2537849be9a8d42aa50661ad6099d2d2e72aa8c5c706dd235",
+    } },
+}
