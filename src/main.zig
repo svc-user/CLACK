@@ -8,6 +8,7 @@ const State = struct {
     soundStream: *soundio.OutputStream = undefined,
     hhk: user32.HHOOK = undefined,
     currentBuffer: [1024 * 9]f32 = undefined,
+    bufferSize: usize = 0,
 };
 var state: State = .{};
 
@@ -76,6 +77,8 @@ pub fn main() !void {
         .write_callback = sndio_callback,
     });
     state.soundStream = outstream;
+    try state.soundStream.start();
+    try state.soundStream.pause(true); // start buffer, but set in a paused state
 
     try addKeyMap();
     try addKeyMapShift();
@@ -121,6 +124,7 @@ pub fn main() !void {
 }
 
 // var phase: f32 = 0.0;
+var frames_played: usize = 0;
 fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) void {
     _ = arg;
 
@@ -130,8 +134,10 @@ fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) 
 
     var frame: usize = 0;
     while (frame < num_frames) : (frame += 1) {
-        buffer.channels[0].set(frame, state.currentBuffer[frame]);
-        buffer.channels[1].set(frame, state.currentBuffer[frame]);
+        if (frame + frames_played > state.bufferSize) break;
+
+        buffer.channels[0].set(frame, state.currentBuffer[frame + frames_played]);
+        buffer.channels[1].set(frame, state.currentBuffer[frame + frames_played]);
 
         // const val = amplitude * (2.0 * std.math.fabs(2.0 * phase - 1.0) - 1);
         // buffer.channels[0].set(frame, val);
@@ -140,8 +146,11 @@ fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) 
         // if (phase >= 1.0)
         //     phase -= 1.0;
     }
-
-    //state.soundStream.pause() catch {};
+    frames_played += num_frames;
+    if (frames_played >= state.bufferSize) {
+        frames_played = 0;
+        state.soundStream.pause(true) catch {};
+    }
 }
 
 fn messageListener(_: windows.LPVOID) callconv(windows.WINAPI) windows.DWORD {
@@ -152,15 +161,16 @@ fn messageListener(_: windows.LPVOID) callconv(windows.WINAPI) windows.DWORD {
     _ = user32.PostMessageW(null, 0, 0, 0);
 
     if (@intFromPtr(state.hhk) != 0) {
-        std.debug.print("Waiting. Hook is {any}\n", .{state.hhk});
-    }
+        std.debug.print("Hook is {any}\n", .{state.hhk});
 
-    while (true) {
-        var msg: windows.user32.MSG = undefined;
-        windows.user32.getMessageW(&msg, null, 0, 0) catch @panic("getMessageW failed.");
+        while (true) {
+            var msg: windows.user32.MSG = undefined;
+            windows.user32.getMessageW(&msg, null, 0, 0) catch @panic("getMessageW failed.");
 
-        std.debug.print("Msg: {any}\n", .{msg});
+            std.debug.print("Msg: {any}\n", .{msg});
+        }
     }
+    std.os.windows.kernel32.ExitProcess(1);
 }
 
 pub fn hookHandler(code: windows.INT, wParam: windows.WPARAM, lParam: windows.LPARAM) windows.LRESULT {
@@ -216,11 +226,14 @@ fn playClack(sType: SoundType, _: KeyState) void {
     while (i < soundFile.len) : (i += 1) {
         state.currentBuffer[i] = soundFile[i];
     }
+    state.bufferSize = i;
+
     while (i < state.currentBuffer.len) : (i += 1) {
         state.currentBuffer[i] = 0;
     }
 
-    state.soundStream.start() catch {};
+    // unpause
+    state.soundStream.pause(false) catch {};
 }
 
 const KeyState = enum { Down, Up };
