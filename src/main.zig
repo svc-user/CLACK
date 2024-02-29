@@ -1,34 +1,66 @@
 const std = @import("std");
 const windows = std.os.windows;
 const user32 = @import("user32ext.zig");
-//const winmm = @import("winmm.zig");
 const soundio = @import("soundio");
+const wav = @import("wav");
 
 const State = struct {
-    // wavHandl: winmm.HWAVEOUT = undefined,
+    soundStream: *soundio.OutputStream = undefined,
     hhk: user32.HHOOK = undefined,
-    canPlay: bool = false,
-    currentBuffer: [1024]f32 = undefined,
+    currentBuffer: [1024 * 9]f32 = undefined,
 };
 var state: State = .{};
 
-const Soundfiles: [std.meta.tags(Sound).len][]f32 = {
-    var i: usize = 0;
-    inline for (std.meta.tags(Sound)) |sType| {
-        Soundfiles[i] = switch (sType) {
-            //.Backspace => @embedFile("sounds/Dell_allSpeakers_mono.wav"),
-            .Backspace => @embedFile("sounds/backspace.wav"),
-            .Enter => @embedFile("sounds/enter.wav"),
-            .Space => @embedFile("sounds/space.wav"),
-            .Generic0 => @embedFile("sounds/generic0.wav"),
-            .Generic1 => @embedFile("sounds/generic1.wav"),
-            .Generic2 => @embedFile("sounds/generic2.wav"),
-            .Generic3 => @embedFile("sounds/generic3.wav"),
-            .Generic4 => @embedFile("sounds/generic4.wav"),
-        };
-        i += 1;
-    }
+const Soundfiles = struct {
+    Backspace: []f32 = readWavRawData(@embedFile("sounds/backspace.wav")),
+    Enter: []f32 = readWavRawData(@embedFile("sounds/enter.wav")),
+    Space: []f32 = readWavRawData(@embedFile("sounds/space.wav")),
+    Generic0: []f32 = readWavRawData(@embedFile("sounds/generic0.wav")),
+    Generic1: []f32 = readWavRawData(@embedFile("sounds/generic1.wav")),
+    Generic2: []f32 = readWavRawData(@embedFile("sounds/generic2.wav")),
+    Generic3: []f32 = readWavRawData(@embedFile("sounds/generic3.wav")),
+    Generic4: []f32 = readWavRawData(@embedFile("sounds/generic4.wav")),
 };
+const soundFiles: Soundfiles = .{};
+
+fn readWavRawData(comptime file: []const u8) []f32 {
+    @setEvalBranchQuota(1000000);
+
+    var buffa = [_]f32{0} ** (1024 * 9);
+    var buff = &buffa;
+    var written: usize = 0;
+
+    var fbs = std.io.fixedBufferStream(file);
+    var decoder = wav.decoder(fbs.reader()) catch {
+        @compileError("couldn't wrap file in fixedBufferStream");
+    };
+    // @compileLog("bits ", decoder.bits());
+    // @compileLog("chans ", decoder.channels());
+    // @compileLog("sampl ", decoder.sampleRate());
+    // @compileLog("remf ", decoder.remaining());
+    //@compileLog("format ", decoder.fmt);
+    //@compileLog("-----------------");
+    // @compileLog("  remf ", decoder.remaining());
+    var eos = decoder.read(f32, buff[written..]) catch {
+        0;
+    };
+    written += eos;
+    // @compileLog(" .remf ", decoder.remaining());
+    // @compileLog("[0] written ", written);
+    while (eos != 0) {
+        eos = decoder.read(f32, buff[written..]) catch {
+            0;
+        };
+        written += eos;
+        // @compileLog("..remf ", decoder.remaining());
+        // @compileLog("[1] written ", written);
+    }
+
+    // @compileLog(buff[0..8]);
+    // @compileLog("---------------------------------------");
+
+    return buff[0..written];
+}
 
 const allocator = std.heap.page_allocator;
 var keyMap = std.AutoHashMap(Keys, []const u8).init(allocator);
@@ -39,12 +71,11 @@ pub fn main() !void {
     defer sio.deinit();
 
     var outstream = try sio.createOutputStream(allocator, .{
-        .channel_layout = .mono,
-        .sample_rate = 22050,
+        .channel_layout = .stereo,
+        .sample_rate = 44100,
         .write_callback = sndio_callback,
     });
-
-    try outstream.start();
+    state.soundStream = outstream;
 
     try addKeyMap();
     try addKeyMapShift();
@@ -89,32 +120,28 @@ pub fn main() !void {
     }
 }
 
-var phase: f32 = 0.0;
+// var phase: f32 = 0.0;
 fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) void {
-    // _ = arg;
-
-    // var frame: usize = 0;
-    // while (frame < num_frames) : (frame += 1) {
-    //     buffer.channels[0].data[frame] = state.currentBuffer[frame];
-    // }
-
-    // state.canPlay = true;
-
     _ = arg;
 
-    const freq: f32 = 261.63; // Middle C.
-    const sample_rate_f: f32 = 22050;
-    const amplitude: f32 = 0.4; // Not too loud.
+    // const freq: f32 = 261.63; // Middle C.
+    // const sample_rate_f: f32 = 22050;
+    // const amplitude: f32 = 0.4; // Not too loud.
 
     var frame: usize = 0;
     while (frame < num_frames) : (frame += 1) {
-        const val = amplitude * (2.0 * std.math.fabs(2.0 * phase - 1.0) - 1);
-        buffer.channels[0].set(frame, val);
+        buffer.channels[0].set(frame, state.currentBuffer[frame]);
+        buffer.channels[1].set(frame, state.currentBuffer[frame]);
 
-        phase += freq / sample_rate_f;
-        if (phase >= 1.0)
-            phase -= 1.0;
+        // const val = amplitude * (2.0 * std.math.fabs(2.0 * phase - 1.0) - 1);
+        // buffer.channels[0].set(frame, val);
+
+        // phase += freq / sample_rate_f;
+        // if (phase >= 1.0)
+        //     phase -= 1.0;
     }
+
+    //state.soundStream.pause() catch {};
 }
 
 fn messageListener(_: windows.LPVOID) callconv(windows.WINAPI) windows.DWORD {
@@ -127,8 +154,6 @@ fn messageListener(_: windows.LPVOID) callconv(windows.WINAPI) windows.DWORD {
     if (@intFromPtr(state.hhk) != 0) {
         std.debug.print("Waiting. Hook is {any}\n", .{state.hhk});
     }
-
-    state.canPlay = true;
 
     while (true) {
         var msg: windows.user32.MSG = undefined;
@@ -173,96 +198,33 @@ pub fn hookHandler(code: windows.INT, wParam: windows.WPARAM, lParam: windows.LP
     return user32.CallNextHookEx(0, code, wParam, lParam);
 }
 
-// fn waveCallback(hwo: winmm.HWAVEOUT, uMsg: windows.UINT, dwInst: windows.DWORD_PTR, dwParam1: windows.DWORD_PTR, dwParam2: windows.DWORD_PTR) void {
-//     _ = hwo;
-//     _ = dwInst;
-//     _ = dwParam1;
-//     _ = dwParam2;
-
-//     const msg = switch (uMsg) {
-//         winmm.WOM_OPEN => "WOM_OPEN",
-//         winmm.WOM_CLOSE => "WOM_CLOSE",
-//         winmm.WOM_DONE => "WOM_DONE",
-//         else => {
-//             std.debug.print("{d}\n", .{uMsg});
-//             @panic("unknown msg type.");
-//         },
-//     };
-
-//     switch (uMsg) {
-//         winmm.WOM_OPEN => state.canPlay = true,
-//         winmm.WOM_CLOSE => state.canPlay = false,
-//         winmm.WOM_DONE => state.canPlay = true,
-//         else => unreachable, // would've paniced before reaching this
-//     }
-
-//     std.debug.print("uMsg: {s}\n", .{msg});
-// }
-
-fn playClack(sType: Sound, _: KeyState) void {
-    if (!state.canPlay) return;
-
+fn playClack(sType: SoundType, _: KeyState) void {
     //std.debug.print("CLACK! {s} {s}\n", .{ @tagName(sType), @tagName(keyState) });
 
-    var soundFile: []const u8 = switch (sType) {
-        //.Backspace => @embedFile("sounds/Dell_allSpeakers_mono.wav"),
-        .Backspace => @embedFile("sounds/backspace.wav"),
-        .Enter => @embedFile("sounds/enter.wav"),
-        .Space => @embedFile("sounds/space.wav"),
-        .Generic0 => @embedFile("sounds/generic0.wav"),
-        .Generic1 => @embedFile("sounds/generic1.wav"),
-        .Generic2 => @embedFile("sounds/generic2.wav"),
-        .Generic3 => @embedFile("sounds/generic3.wav"),
-        .Generic4 => @embedFile("sounds/generic4.wav"),
+    var soundFile: []const f32 = switch (sType) {
+        .Backspace => soundFiles.Backspace,
+        .Enter => soundFiles.Enter,
+        .Space => soundFiles.Space,
+        .Generic0 => soundFiles.Generic0,
+        .Generic1 => soundFiles.Generic1,
+        .Generic2 => soundFiles.Generic2,
+        .Generic3 => soundFiles.Generic3,
+        .Generic4 => soundFiles.Generic4,
     };
-    state.canPlay = false;
 
-    var bi: usize = 0;
     var i: usize = 0;
-    while (i < soundFile.len) : (i += 4) {
-        const b1: u32 = if (i + 0 < soundFile.len) @shlExact(@as(u32, soundFile[i + 0]), 24) else 0;
-        const b2: u32 = if (i + 1 < soundFile.len) @shlExact(@as(u32, soundFile[i + 1]), 16) else 0;
-        const b3: u32 = if (i + 2 < soundFile.len) @shlExact(@as(u32, soundFile[i + 2]), 8) else 0;
-        const b4: u32 = if (i + 3 < soundFile.len) @shlExact(@as(u32, soundFile[i + 3]), 0) else 0;
-
-        const f: f32 = @bitCast(b1 | b2 | b3 | b4);
-        state.currentBuffer[bi] = f;
-        bi += 1;
+    while (i < soundFile.len) : (i += 1) {
+        state.currentBuffer[i] = soundFile[i];
     }
-    while (bi < state.currentBuffer.len) : (bi += 1) {
-        state.currentBuffer[bi] = 0;
+    while (i < state.currentBuffer.len) : (i += 1) {
+        state.currentBuffer[i] = 0;
     }
 
-    // var wh: winmm.WAVEHDR = .{
-    //     .lpData = @ptrCast(@constCast(soundFile)),
-    //     .dwBufferLength = @intCast(soundFile.len),
-    //     .dwBytesRecorded = 0,
-    //     .dwUser = 0,
-    //     .dwFlags = 0,
-    //     .dwLoops = 0,
-    //     .lpNext = 0,
-    //     .reserved = 0,
-    // };
-
-    // var pwh: winmm.LPWAVEHDR = &wh;
-    // var mmr = winmm.waveOutPrepareHeader(state.wavHandl, pwh, @sizeOf(winmm.WAVEHDR));
-    // if (mmr != winmm.MMSYSERR_NOERROR) return;
-
-    // std.debug.print("waveOutPrepareHeader.dwFlags: {b:08}\n", .{wh.dwFlags});
-
-    // mmr = winmm.waveOutWrite(state.wavHandl, pwh, @sizeOf(winmm.WAVEHDR));
-    // if (mmr != winmm.MMSYSERR_NOERROR) return;
-
-    // std.debug.print("waveOutWrite.dwFlags:         {b:08}\n", .{wh.dwFlags});
-
-    //std.time.sleep(1 * 1000 * 1000 * 1000);
-
-    // mmr = winmm.waveOutUnprepareHeader(wavHandl, pwh, @sizeOf(winmm.WAVEHDR));
-    // if (mmr != 0) return;
+    state.soundStream.start() catch {};
 }
 
 const KeyState = enum { Down, Up };
-const Sound = enum { Generic0, Generic1, Generic2, Generic3, Generic4, Space, Enter, Backspace };
+const SoundType = enum { Generic0, Generic1, Generic2, Generic3, Generic4, Space, Enter, Backspace };
 
 // keyMap
 fn addKeyMap() !void {
