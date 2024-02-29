@@ -1,3 +1,6 @@
 [submodule "zig-soundio"]
 	path = src/zig-soundio
 	url = https://github.com/svc-user/zig-soundio.git
+[submodule "src/zig-soundio"]
+	path = src/zig-soundio
+	url = https://github.com/svc-user/zig-soundio.git
