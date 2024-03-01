@@ -78,7 +78,7 @@ pub fn main() !void {
     });
     state.soundStream = outstream;
     try state.soundStream.start();
-    try state.soundStream.pause(true); // start buffer, but set in a paused state
+    //try state.soundStream.pause(true); // start buffer, but set in a paused state
 
     try addKeyMap();
     try addKeyMapShift();
@@ -149,7 +149,7 @@ fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) 
     frames_played += num_frames;
     if (frames_played >= state.bufferSize) {
         frames_played = 0;
-        state.soundStream.pause(true) catch {};
+        //state.soundStream.pause(true) catch {};
     }
 }
 
@@ -223,17 +223,18 @@ fn playClack(sType: SoundType, _: KeyState) void {
     };
 
     var i: usize = 0;
+    std.mem.zeroes(state.currentBuffer);
     while (i < soundFile.len) : (i += 1) {
         state.currentBuffer[i] = soundFile[i];
     }
     state.bufferSize = i;
 
-    while (i < state.currentBuffer.len) : (i += 1) {
-        state.currentBuffer[i] = 0;
-    }
+    // while (i < state.currentBuffer.len) : (i += 1) {
+    //     state.currentBuffer[i] = 0;
+    // }
 
     // unpause
-    state.soundStream.pause(false) catch {};
+    //state.soundStream.pause(false) catch {};
 }
 
 const KeyState = enum { Down, Up };
