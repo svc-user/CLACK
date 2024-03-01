@@ -35,30 +35,21 @@ fn readWavRawData(comptime file: []const u8) []f32 {
     var decoder = wav.decoder(fbs.reader()) catch {
         @compileError("couldn't wrap file in fixedBufferStream");
     };
-    // @compileLog("bits ", decoder.bits());
-    // @compileLog("chans ", decoder.channels());
-    // @compileLog("sampl ", decoder.sampleRate());
-    // @compileLog("remf ", decoder.remaining());
-    //@compileLog("format ", decoder.fmt);
-    //@compileLog("-----------------");
-    // @compileLog("  remf ", decoder.remaining());
+
     var eos = decoder.read(f32, buff[written..]) catch {
         0;
     };
+
     written += eos;
-    // @compileLog(" .remf ", decoder.remaining());
-    // @compileLog("[0] written ", written);
     while (eos != 0) {
         eos = decoder.read(f32, buff[written..]) catch {
             0;
         };
         written += eos;
-        // @compileLog("..remf ", decoder.remaining());
-        // @compileLog("[1] written ", written);
     }
 
-    // @compileLog(buff[0..8]);
-    // @compileLog("---------------------------------------");
+    // @compileLog(decoder.fmt.code, decoder.fmt.bytes_per_second, decoder.bits(), decoder.channels(), decoder.sampleRate());
+    // @compileLog("---------------");
 
     return buff[0..written];
 }
@@ -73,12 +64,11 @@ pub fn main() !void {
 
     var outstream = try sio.createOutputStream(allocator, .{
         .channel_layout = .stereo,
-        .sample_rate = 44100,
+        //.sample_rate = 44100,
         .write_callback = sndio_callback,
     });
     state.soundStream = outstream;
     try state.soundStream.start();
-    //try state.soundStream.pause(true); // start buffer, but set in a paused state
 
     try addKeyMap();
     try addKeyMapShift();
@@ -123,14 +113,9 @@ pub fn main() !void {
     }
 }
 
-// var phase: f32 = 0.0;
 var frames_played: usize = 0;
 fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) void {
     _ = arg;
-
-    // const freq: f32 = 261.63; // Middle C.
-    // const sample_rate_f: f32 = 22050;
-    // const amplitude: f32 = 0.4; // Not too loud.
 
     var frame: usize = 0;
     while (frame < num_frames) : (frame += 1) {
@@ -140,17 +125,10 @@ fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) 
         buffer.channels[1].set(frame, state.currentBuffer[frame + frames_played]);
 
         state.currentBuffer[frame + frames_played] = 0;
-        // const val = amplitude * (2.0 * std.math.fabs(2.0 * phase - 1.0) - 1);
-        // buffer.channels[0].set(frame, val);
-
-        // phase += freq / sample_rate_f;
-        // if (phase >= 1.0)
-        //     phase -= 1.0;
     }
     frames_played += num_frames;
     if (frames_played >= state.bufferSize) {
         frames_played = 0;
-        //state.soundStream.pause(true) catch {};
     }
 }
 
@@ -184,9 +162,6 @@ pub fn hookHandler(code: windows.INT, wParam: windows.WPARAM, lParam: windows.LP
     var cwpr: *user32.KBDLLHOOKSTRUCT = undefined;
     cwpr = @ptrFromInt(ulParam);
 
-    // std.debug.print("Hook called with code: {d}, wParam: 0x{x}, lParam:fff 0x{x}.\n", .{ code, wParam, lParam });
-    //std.debug.print("cwpr: {any}\n", .{cwpr});
-
     switch (cwpr.vkCode) {
         8 => playClack(.Backspace, ks),
         13 => playClack(.Enter, ks),
@@ -196,22 +171,10 @@ pub fn hookHandler(code: windows.INT, wParam: windows.WPARAM, lParam: windows.LP
         else => playClack(.Generic0, ks),
     }
 
-    // if (ks == .Up) {
-    //     var keycode: Keys = @enumFromInt(cwpr.vkCode);
-    //     switch (keycode) {
-    //         .Enter => std.debug.print("\n", .{}),
-    //         //.Space => std.debug.print(" ", .{}),
-    //         .Tab => std.debug.print("\t", .{}),
-    //         else => std.debug.print("{s} ", .{@tagName(keycode)}),
-    //     }
-    // }
-
     return user32.CallNextHookEx(0, code, wParam, lParam);
 }
 
 fn playClack(sType: SoundType, _: KeyState) void {
-    //std.debug.print("CLACK! {s} {s}\n", .{ @tagName(sType), @tagName(keyState) });
-
     var soundFile: []const f32 = switch (sType) {
         .Backspace => soundFiles.Backspace,
         .Enter => soundFiles.Enter,
@@ -233,9 +196,6 @@ fn playClack(sType: SoundType, _: KeyState) void {
     while (i < state.currentBuffer.len) : (i += 1) {
         state.currentBuffer[i] = 0;
     }
-
-    // unpause
-    //state.soundStream.pause(false) catch {};
 }
 
 const KeyState = enum { Down, Up };

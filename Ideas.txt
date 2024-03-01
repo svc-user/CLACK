@@ -1,0 +1,6 @@
+Ideas:
+    * Allow soundpacks from https://mechvibes.com/sound-packs/
+        * A zig build step that reads config.json and cut out the sound parts.
+        * alt: Just read the config and cut the files on runtime.
+    * Turn volume up/down in CLACK
+    * Always append to a ring buffer so sounds are not cut short.
