@@ -134,11 +134,12 @@ fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) 
 
     var frame: usize = 0;
     while (frame < num_frames) : (frame += 1) {
-        if (frame + frames_played > state.bufferSize) break;
+        if (frame + frames_played >= state.bufferSize) break;
 
         buffer.channels[0].set(frame, state.currentBuffer[frame + frames_played]);
         buffer.channels[1].set(frame, state.currentBuffer[frame + frames_played]);
 
+        state.currentBuffer[frame + frames_played] = 0;
         // const val = amplitude * (2.0 * std.math.fabs(2.0 * phase - 1.0) - 1);
         // buffer.channels[0].set(frame, val);
 
@@ -223,15 +224,15 @@ fn playClack(sType: SoundType, _: KeyState) void {
     };
 
     var i: usize = 0;
-    std.mem.zeroes(state.currentBuffer);
+
     while (i < soundFile.len) : (i += 1) {
         state.currentBuffer[i] = soundFile[i];
     }
     state.bufferSize = i;
 
-    // while (i < state.currentBuffer.len) : (i += 1) {
-    //     state.currentBuffer[i] = 0;
-    // }
+    while (i < state.currentBuffer.len) : (i += 1) {
+        state.currentBuffer[i] = 0;
+    }
 
     // unpause
     //state.soundStream.pause(false) catch {};
