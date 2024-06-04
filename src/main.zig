@@ -7,8 +7,10 @@ const wav = @import("wav");
 const State = struct {
     soundStream: *soundio.OutputStream = undefined,
     hhk: user32.HHOOK = undefined,
-    currentBuffer: [1024 * 9]f32 = undefined,
-    bufferSize: usize = 0,
+
+    soundbuffer: [1024 * 16]f32 = undefined,
+    bufferHead: usize = 0,
+    bufferTail: usize = 0,
 };
 var state: State = .{};
 
@@ -113,22 +115,25 @@ pub fn main() !void {
     }
 }
 
-var frames_played: usize = 0;
 fn sndio_callback(arg: ?*anyopaque, num_frames: usize, buffer: *soundio.Buffer) void {
     _ = arg;
 
     var frame: usize = 0;
     while (frame < num_frames) : (frame += 1) {
-        if (frame + frames_played >= state.bufferSize) break;
+        if (state.bufferHead > state.soundbuffer.len and state.bufferTail > state.soundbuffer.len and (state.bufferHead % state.soundbuffer.len) < (state.bufferTail % state.soundbuffer.len)) {
+            // std.debug.print("head at => {d}\ntail at => {d}\n", .{ state.bufferHead, state.bufferTail });
+            state.bufferHead %= state.soundbuffer.len;
+            state.bufferTail %= state.soundbuffer.len;
+            // std.debug.print("wrapping\n", .{});
+            // std.debug.print("head at => {d}\ntail at => {d}\n", .{ state.bufferHead, state.bufferTail });
+        }
+        if (state.bufferHead >= state.bufferTail) break;
 
-        buffer.channels[0].set(frame, state.currentBuffer[frame + frames_played]);
-        buffer.channels[1].set(frame, state.currentBuffer[frame + frames_played]);
+        buffer.channels[0].set(frame, state.soundbuffer[state.bufferHead % state.soundbuffer.len]);
+        buffer.channels[1].set(frame, state.soundbuffer[state.bufferHead % state.soundbuffer.len]);
 
-        state.currentBuffer[frame + frames_played] = 0;
-    }
-    frames_played += num_frames;
-    if (frames_played >= state.bufferSize) {
-        frames_played = 0;
+        state.soundbuffer[state.bufferHead % state.soundbuffer.len] = 0;
+        state.bufferHead += 1;
     }
 }
 
@@ -187,15 +192,18 @@ fn playClack(sType: SoundType, _: KeyState) void {
     };
 
     var i: usize = 0;
-
+    var curHead: usize = state.bufferHead;
     while (i < soundFile.len) : (i += 1) {
-        state.currentBuffer[i] = soundFile[i];
-    }
-    state.bufferSize = i;
+        var newFrame = (state.soundbuffer[curHead % state.soundbuffer.len] + soundFile[i]);
+        if (state.soundbuffer[curHead % state.soundbuffer.len] > 0 and soundFile[i] > 0) {
+            // std.debug.print("{d: >4.4} + {d: >4.4} = {d: >4.4}\n", .{ state.soundbuffer[curHead % state.soundbuffer.len], soundFile[i], newFrame });
+            newFrame /= 2;
+        }
 
-    while (i < state.currentBuffer.len) : (i += 1) {
-        state.currentBuffer[i] = 0;
+        state.soundbuffer[curHead % state.soundbuffer.len] = newFrame;
+        curHead += 1;
     }
+    state.bufferTail = @max(state.bufferTail, curHead);
 }
 
 const KeyState = enum { Down, Up };
